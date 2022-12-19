@@ -936,6 +936,25 @@ struct kvm_ppc_resize_hpt {
 #define KVM_GET_EMULATED_CPUID	  _IOWR(KVMIO, 0x09, struct kvm_cpuid2)
 #define KVM_GET_MSR_FEATURE_INDEX_LIST    _IOWR(KVMIO, 0x0a, struct kvm_msr_list)
 
+/* Record and Replay */
+#define KVM_RR_CTRL               _IO(KVMIO, 0x0b)
+
+/* Decide how to get accessed memory */
+#define KVM_RR_CTRL_MEM_MASK        0x7U
+#define KVM_RR_CTRL_MEM_SOFTWARE	0x0U
+#define KVM_RR_CTRL_MEM_EPT		    0x1U
+#define KVM_RR_CTRL_MEM_MEMSLOT		0x2U
+
+/* Decide record and replay mode */
+#define KVM_RR_CTRL_MODE_MASK		(0x3U << 3)
+#define KVM_RR_CTRL_MODE_SYNC		0x0U
+#define KVM_RR_CTRL_MODE_ASYNC		(0x1U << 3)
+
+/* Decide how to kick vcpu */
+#define KVM_RR_CTRL_KICK_MASK		(0x3U << 5)
+#define KVM_RR_CTRL_KICK_PREEMPTION	0x0U
+#define KVM_RR_CTRL_KICK_TIMER		(0x1U << 5)
+
 /*
  * Extension capability list.
  */

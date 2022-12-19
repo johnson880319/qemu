@@ -4345,7 +4345,7 @@ static void rr_start_logging(const char *dev_name, const char *log_name)
 {
     sprintf(log_arg.dev_name, "%s", dev_name);
     sprintf(log_arg.log_name, "%s", log_name);
-    qemu_thread_create(&log_thread, rr_log_to_file, &log_arg,
+    qemu_thread_create(&log_thread, "rr_log_to_file", rr_log_to_file, &log_arg,
                        QEMU_THREAD_JOINABLE);
 }
 
@@ -4362,7 +4362,7 @@ static void rr_start_fetching_log(const char *dev_name, const char *log_name)
 {
     sprintf(log_arg.dev_name, "%s", dev_name);
     sprintf(log_arg.log_name, "%s", log_name);
-    qemu_thread_create(&log_thread, rr_fetch_log_from_file, &log_arg,
+    qemu_thread_create(&log_thread, "rr_fetch_log_from_file", rr_fetch_log_from_file, &log_arg,
                        QEMU_THREAD_JOINABLE);
 }
 
