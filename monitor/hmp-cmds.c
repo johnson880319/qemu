@@ -1601,6 +1601,23 @@ void hmp_migrate(Monitor *mon, const QDict *qdict)
     }
 }
 
+void hmp_samsara_record(Monitor *mon, const QDict *qdict)
+{
+    bool enable = qdict_get_bool(qdict, "enable");
+    int preempt_val = qdict_get_try_int(qdict, "preempt_val", -1);
+    const char *log_name = qdict_get_try_str(qdict, "log_name");
+
+    rr_record_handle_cmd(enable, preempt_val, log_name);
+}
+
+void hmp_samsara_replay(Monitor *mon, const QDict *qdict)
+{
+    bool enable = qdict_get_bool(qdict, "enable");
+    const char *log_name = qdict_get_try_str(qdict, "log_name");
+
+    rr_replay_handle_cmd(enable, log_name);
+}
+
 void hmp_netdev_add(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;

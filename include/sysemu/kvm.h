@@ -584,4 +584,10 @@ bool kvm_arch_cpu_check_are_resettable(void);
 bool kvm_dirty_ring_enabled(void);
 
 uint32_t kvm_dirty_ring_size(void);
+
+/* Record and replay */
+#define RR_DMA_START    0
+#define RR_DMA_FINISH   1
+#define RR_DMA_SET_DATA 2
+int rr_set_dma_info(int cmd, uint32_t addr, int len, bool last);
 #endif

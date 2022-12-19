@@ -631,6 +631,27 @@ struct kvm_vapic_addr {
 	__u64 vapic_addr;
 };
 
+/* Record and replay */
+#define RR_DMA_INFO_GFN_SIZE 32
+struct rr_dma_info {
+    int cmd;
+    int size;
+    __u32 gfn[RR_DMA_INFO_GFN_SIZE];
+};
+
+/* Definitions for logger fd */
+#define LOGGER_STATE_INPUT      2
+
+#define LOGGER_IOC_MAGIC		0XAF
+#define LOGGER_FLUSH			_IO(LOGGER_IOC_MAGIC, 0)
+#define LOGGER_SET_STATE        _IO(LOGGER_IOC_MAGIC, 1)
+
+struct kvm_rr_ctrl {
+    __u16 enabled;
+    __u16 ctrl;
+    __u32 timer_value;
+};
+
 /* for KVM_SET_MP_STATE */
 
 /* not all states are valid on all architectures */

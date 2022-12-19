@@ -1800,3 +1800,40 @@ ERST
                       "\n\t\t\t\t\t limit on a specified virtual cpu",
         .cmd        = hmp_cancel_vcpu_dirty_limit,
     },
+
+    {
+        .name       = "record",
+        .args_type  = "enable:b,preempt_val:i?,log_name:s?",
+        .params     = "enable [preempt_val] [log_name]",
+        .help       = "enable samsara recording into log file 'log_name'"
+                      "('samsara.log' by default) with preemption timer value "
+                      "'preempt_val'(300000 by default) or disable samsara "
+                      "recording",
+        .cmd = hmp_samsara_record,
+    },
+
+
+SRST
+@item record @var{enable} [@var{preempt_val}] [@var{log_name}]
+@findex record
+Enable samsara recording into log file 'log_name' ('samsara.log' by default)
+with preemption timer value 'preempt_val'(300000 by default) or disable samsara
+recording.
+ERST
+
+    {
+        .name       = "replay",
+        .args_type  = "enable:b,log_name:s?",
+        .params     = "enable [log_name]",
+        .help       = "enable samsara replay from log file 'log_name'"
+                      "('samsara.log' by default) or disable samsara replay",
+        .cmd = hmp_samsara_replay,
+    },
+
+
+SRST
+@item replay @var{enable} [@var{log_name}]
+@findex replay
+Enable samsara replay from log file 'log_name' ('samsara.log' by default) or
+disable samsara replay.
+ERST
