@@ -50,6 +50,7 @@
 #include "hw/boards.h"
 #include "monitor/stats.h"
 #include "monitor/hmp.h"
+#include "migration/snapshot.h"
 
 /* This check must be after config-host.h is included */
 #ifdef CONFIG_EVENTFD
@@ -4398,8 +4399,9 @@ void rr_record_handle_cmd(bool enable, int preempt_val, const char *log_name)
         log_name = RR_DEFAULT_LOG_FILE_NAME;
     }
 
-    save_snapshot("samsara_snapshot", true, NULL, false, NULL, &err)
-    if (hmp_handle_error(mon, err)) {
+    save_snapshot("samsara_snapshot", true, NULL, false, NULL, &err);
+    if (err) {
+        error_reportf_err(err, "Error: ");
         return;
     }
 
@@ -4446,7 +4448,8 @@ void rr_replay_handle_cmd(bool enable, const char *log_name)
     if (load_snapshot(name, NULL, false, NULL, &err) && saved_vm_running) {
         vm_start();
     }
-    if (hmp_handle_error(mon, err)) {
+    if (err) {
+        error_reportf_err(err, "Error: ");
         return;
     }
 
