@@ -4371,6 +4371,7 @@ void rr_record_handle_cmd(bool enable, int preempt_val, const char *log_name)
     struct kvm_rr_ctrl rr_ctrl;
     int ret;
     uint16_t rr_ctrl_mode, rr_ctrl_mem, rr_ctrl_kick;
+    Error *err = NULL;
 
     memset(&rr_ctrl, 0, sizeof(rr_ctrl));
 
@@ -4397,6 +4398,11 @@ void rr_record_handle_cmd(bool enable, int preempt_val, const char *log_name)
         log_name = RR_DEFAULT_LOG_FILE_NAME;
     }
 
+    save_snapshot("samsara_snapshot", true, NULL, false, NULL, &err)
+    if (hmp_handle_error(mon, err)) {
+        return;
+    }
+
     rr_ctrl_mem = KVM_RR_CTRL_MEM_EPT;
     rr_ctrl_mode = KVM_RR_CTRL_MODE_ASYNC;
     rr_ctrl_kick = KVM_RR_CTRL_KICK_PREEMPTION;
@@ -4418,6 +4424,10 @@ void rr_record_handle_cmd(bool enable, int preempt_val, const char *log_name)
 
 void rr_replay_handle_cmd(bool enable, const char *log_name)
 {
+    int saved_vm_running  = runstate_is_running();
+    const char *name = "samsara_snapshot";
+    Error *err = NULL;
+
     if (!enable) {
         printf("[SAMSARA]replay disabled\n");
         qemu_mutex_unlock_iothread();
@@ -4429,8 +4439,16 @@ void rr_replay_handle_cmd(bool enable, const char *log_name)
     if (!log_name) {
         log_name = RR_DEFAULT_LOG_FILE_NAME;
     }
-    printf("[SAMSARA]replay not implemented: enable=%d log_name=%s\n", enable,
-           log_name);
+    // printf("[SAMSARA]replay not implemented: enable=%d log_name=%s\n", enable,
+    //        log_name);
+    vm_stop(RUN_STATE_RESTORE_VM);
+
+    if (load_snapshot(name, NULL, false, NULL, &err) && saved_vm_running) {
+        vm_start();
+    }
+    if (hmp_handle_error(mon, err)) {
+        return;
+    }
 
     rr_start_fetching_log(RR_LOGGER_DEV_NAME, log_name);
 }
