@@ -270,6 +270,7 @@ struct kvm_xen_exit {
 #define KVM_EXIT_X86_BUS_LOCK     33
 #define KVM_EXIT_XEN              34
 #define KVM_EXIT_RISCV_SBI        35
+#define KVM_EXIT_REPLAY           36
 
 /* For KVM_EXIT_INTERNAL_ERROR */
 /* Emulate instruction failed. */
@@ -648,6 +649,7 @@ struct rr_dma_info {
 
 struct kvm_rr_ctrl {
     __u16 enabled;
+	__u16 replay_enabled;
     __u16 ctrl;
     __u32 timer_value;
 };

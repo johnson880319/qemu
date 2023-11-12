@@ -41,6 +41,7 @@ static void replay_run_event(Event *event)
         ((QEMUBHFunc *)event->opaque)(event->opaque2);
         break;
     case REPLAY_ASYNC_EVENT_INPUT:
+        // printf("replay_run_event REPLAY_ASYNC_EVENT_INPUT\n");
         qemu_input_event_send_impl(NULL, (InputEvent *)event->opaque);
         qapi_free_InputEvent((InputEvent *)event->opaque);
         break;
@@ -48,6 +49,7 @@ static void replay_run_event(Event *event)
         qemu_input_event_sync_impl();
         break;
     case REPLAY_ASYNC_EVENT_CHAR_READ:
+        // printf("run event REPLAY_ASYNC_EVENT_CHAR_READ\n");
         replay_event_char_read_run(event->opaque);
         break;
     case REPLAY_ASYNC_EVENT_BLOCK:
@@ -82,7 +84,7 @@ void replay_flush_events(void)
         return;
     }
 
-    g_assert(replay_mutex_locked());
+    // g_assert(replay_mutex_locked());
 
     while (!QTAILQ_EMPTY(&events_list)) {
         Event *event = QTAILQ_FIRST(&events_list);
@@ -177,6 +179,7 @@ static void replay_save_event(Event *event)
         g_assert(event->event_kind < REPLAY_ASYNC_COUNT);
         replay_put_event(EVENT_ASYNC + event->event_kind);
 
+        // printf("replay_save_event event_kind: %d\n", event->event_kind);
         /* save event-specific data */
         switch (event->event_kind) {
         case REPLAY_ASYNC_EVENT_BH:
@@ -221,6 +224,7 @@ static Event *replay_read_event(void)
 {
     Event *event;
     ReplayAsyncEventKind event_kind = replay_state.data_kind - EVENT_ASYNC;
+    // printf("replay_read_event event_kind: %d\n", event_kind);
 
     /* Events that has not to be in the queue */
     switch (event_kind) {
@@ -241,6 +245,7 @@ static Event *replay_read_event(void)
         event->opaque = 0;
         return event;
     case REPLAY_ASYNC_EVENT_CHAR_READ:
+        // printf("read event REPLAY_ASYNC_EVENT_CHAR_READ\n");
         event = g_new0(Event, 1);
         event->event_kind = event_kind;
         event->opaque = replay_event_char_read_load();
@@ -279,13 +284,15 @@ static Event *replay_read_event(void)
 /* Called with replay mutex locked */
 void replay_read_events(void)
 {
-    g_assert(replay_mutex_locked());
+    // printf("replay_read_events data_kind: %d\n", replay_state.data_kind);
+    // g_assert(replay_mutex_locked());
     while (replay_state.data_kind >= EVENT_ASYNC
         && replay_state.data_kind <= EVENT_ASYNC_LAST) {
         Event *event = replay_read_event();
         if (!event) {
             break;
         }
+        // printf("read events type: %d\n", event->event_kind);
         replay_finish_event();
         replay_state.read_event_id = -1;
         replay_run_event(event);

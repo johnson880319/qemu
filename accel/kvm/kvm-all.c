@@ -31,6 +31,8 @@
 #include "sysemu/kvm_int.h"
 #include "sysemu/runstate.h"
 #include "sysemu/cpus.h"
+#include "sysemu/replay.h"
+#include "replay/replay-internal.h"
 #include "qemu/bswap.h"
 #include "exec/memory.h"
 #include "exec/ram_addr.h"
@@ -80,6 +82,23 @@
 #endif
 
 #define KVM_MSI_HASHTAB_SIZE    256
+
+
+typedef struct Event {
+    ReplayAsyncEventKind event_kind;
+    void *opaque;
+    void *opaque2;
+    uint64_t id;
+
+    QTAILQ_ENTRY(Event) events;
+} Event;
+
+/* Char event attributes. */
+typedef struct CharEvent {
+    int id;
+    uint8_t *buf;
+    size_t len;
+} CharEvent;
 
 struct KVMParkedVcpu {
     unsigned long vcpu_id;
@@ -211,6 +230,8 @@ static QemuMutex kml_slots_lock;
 #define kvm_slots_unlock()  qemu_mutex_unlock(&kml_slots_lock)
 
 static void kvm_slot_init_dirty_bitmap(KVMSlot *mem);
+
+void rr_disable_replay(void);
 
 static inline void kvm_resample_fd_remove(int gsi)
 {
@@ -3022,6 +3043,20 @@ int kvm_cpu_exec(CPUState *cpu)
                 break;
             }
             break;
+        case KVM_EXIT_REPLAY:
+            printf("KVM_EXIT_REPLAY!!!\n");
+            ret = 0;
+            break;
+        case KVM_EXIT_DEBUG:
+            // replay_mutex_lock();
+            // replay_async_events();
+            // replay_mutex_unlock();
+            ret = 0;
+            break;
+        case KVM_EXIT_DCR:
+            rr_disable_replay();
+            ret = 0;
+            break;
         default:
             DPRINTF("kvm_arch_handle_exit\n");
             ret = kvm_arch_handle_exit(cpu, run);
@@ -4280,11 +4315,11 @@ out:
     return 0;
 }
 
-static void *rr_fetch_log_from_file(void *opaque)
+static void *rr_fetch_log_from_file(const char *dev_name, const char *log_name)
 {
-    RRLogThreadArg *arg = opaque;
-    const char *dev_name = arg->dev_name;
-    const char *log_name = arg->log_name;
+    // RRLogThreadArg *arg = opaque;
+    // const char *dev_name = arg->dev_name;
+    // const char *log_name = arg->log_name;
     FILE *f = NULL, *f_log = NULL;
     unsigned long len = RR_LOGGER_BUF_LEN;
     int ret;
@@ -4313,6 +4348,7 @@ static void *rr_fetch_log_from_file(void *opaque)
     printf("[SAMSARA]fetching log from %s into %s\n", log_name, dev_name);
     while (!finished) {
         ret = fread(buf, 1, len, f_log);
+        // printf("[SAMSARA]fetched log: %s\n", buf);
         if (ret != len) {
             finished = true;
             if (feof(f_log)) {
@@ -4359,12 +4395,19 @@ static void rr_stop_logging(const char *dev_name)
 /* @dev_name: the file name of the device to map
  * @log_name: the name of the log file to fetch
  */
-static void rr_start_fetching_log(const char *dev_name, const char *log_name)
+// static void rr_start_fetching_log(const char *dev_name, const char *log_name)
+// {
+//     sprintf(log_arg.dev_name, "%s", dev_name);
+//     sprintf(log_arg.log_name, "%s", log_name);
+//     qemu_thread_create(&log_thread, "rr_fetch_log_from_file", rr_fetch_log_from_file, &log_arg,
+//                        QEMU_THREAD_JOINABLE);
+// }
+
+void rr_disable_replay(void)
 {
-    sprintf(log_arg.dev_name, "%s", dev_name);
-    sprintf(log_arg.log_name, "%s", log_name);
-    qemu_thread_create(&log_thread, "rr_fetch_log_from_file", rr_fetch_log_from_file, &log_arg,
-                       QEMU_THREAD_JOINABLE);
+    printf("[SAMSARA]replay disabled\n");
+    rr_flush_logger(RR_LOGGER_DEV_NAME);
+    replay_finish();
 }
 
 void rr_record_handle_cmd(bool enable, int preempt_val, const char *log_name)
@@ -4378,6 +4421,7 @@ void rr_record_handle_cmd(bool enable, int preempt_val, const char *log_name)
 
     if (!enable) {
         rr_ctrl.enabled = 0;
+        rr_ctrl.replay_enabled = 0;
         ret = kvm_ioctl(kvm_state, KVM_RR_CTRL, &rr_ctrl);
         if (ret < 0) {
             fprintf(stderr, "[SAMSARA]error: fail to disable recording: %s\n",
@@ -4389,6 +4433,7 @@ void rr_record_handle_cmd(bool enable, int preempt_val, const char *log_name)
         qemu_mutex_unlock_iothread();
         sleep(5);
         rr_stop_logging(RR_LOGGER_DEV_NAME);
+        replay_finish();
         qemu_mutex_lock_iothread();
         return;
     }
@@ -4399,17 +4444,24 @@ void rr_record_handle_cmd(bool enable, int preempt_val, const char *log_name)
         log_name = RR_DEFAULT_LOG_FILE_NAME;
     }
 
+    /* record replay */
+    replay_vmstate_register();
+    replay_enable("rr.log", REPLAY_MODE_RECORD);
+
+    /* snapshot */
     save_snapshot("samsara_snapshot", true, NULL, false, NULL, &err);
     if (err) {
         error_reportf_err(err, "Error: ");
         return;
     }
-
+    
+    replay_start();
     rr_ctrl_mem = KVM_RR_CTRL_MEM_EPT;
     rr_ctrl_mode = KVM_RR_CTRL_MODE_ASYNC;
     rr_ctrl_kick = KVM_RR_CTRL_KICK_PREEMPTION;
 
     rr_ctrl.enabled = 1;
+    rr_ctrl.replay_enabled = 0;
     rr_ctrl.ctrl = rr_ctrl_mem | rr_ctrl_mode | rr_ctrl_kick;
     rr_ctrl.timer_value = preempt_val;
     ret = kvm_ioctl(kvm_state, KVM_RR_CTRL, &rr_ctrl);
@@ -4426,15 +4478,21 @@ void rr_record_handle_cmd(bool enable, int preempt_val, const char *log_name)
 
 void rr_replay_handle_cmd(bool enable, const char *log_name)
 {
+    struct kvm_rr_ctrl rr_ctrl;
+    int ret;
     int saved_vm_running  = runstate_is_running();
+    int preempt_val = RR_DEFAULT_PREEMPTION_TIMER_VAL;
+    uint16_t rr_ctrl_mode, rr_ctrl_mem, rr_ctrl_kick;
     const char *name = "samsara_snapshot";
     Error *err = NULL;
+    // ReplayAsyncEventKind event_kind = REPLAY_ASYNC_EVENT_CHAR_READ;
 
     if (!enable) {
         printf("[SAMSARA]replay disabled\n");
         qemu_mutex_unlock_iothread();
         rr_flush_logger(RR_LOGGER_DEV_NAME);
         qemu_thread_join(&log_thread);
+        replay_finish();
         qemu_mutex_lock_iothread();
         return;
     }
@@ -4453,5 +4511,42 @@ void rr_replay_handle_cmd(bool enable, const char *log_name)
         return;
     }
 
-    rr_start_fetching_log(RR_LOGGER_DEV_NAME, log_name);
+    /* rr char test */
+    // replay_enable_impl(REPLAY_MODE_PLAY);
+    // CharEvent *charevent = g_new0(CharEvent, 1);
+    // charevent->id = 0;
+    // charevent->len = 10;
+    // charevent->buf = g_malloc(10);
+    // strcpy(charevent->buf, "HELLO");
+    // printf("charevent buf:%s\n", charevent->buf);
+    // Event *event = g_new0(Event, 1);
+    // event = g_new0(Event, 1);
+    // event->event_kind = event_kind;
+    // event->opaque = charevent;
+    // event->opaque2 = NULL;
+    // event->id = 0;
+    // replay_event_char_read_run(event->opaque);
+    // replay_char_write_event_write(charevent->buf, 6);
+
+    replay_enable("rr.log", REPLAY_MODE_PLAY);
+    rr_fetch_log_from_file(RR_LOGGER_DEV_NAME, log_name);
+    replay_start();
+
+    rr_ctrl_mem = KVM_RR_CTRL_MEM_EPT;
+    rr_ctrl_mode = KVM_RR_CTRL_MODE_ASYNC;
+    rr_ctrl_kick = KVM_RR_CTRL_KICK_PREEMPTION;
+
+    rr_ctrl.enabled = 1;
+    rr_ctrl.replay_enabled = 1;
+    rr_ctrl.ctrl = rr_ctrl_mem | rr_ctrl_mode | rr_ctrl_kick;
+    rr_ctrl.timer_value = preempt_val;
+
+    ret = kvm_ioctl(kvm_state, KVM_RR_CTRL, &rr_ctrl);
+    if (ret < 0) {
+        fprintf(stderr, "[SAMSARA]error: fail to enable replaying: %s\n",
+                strerror(errno));
+        return;
+    }
+    printf("[SAMSARA]replay enabled: preempt_val=%d log_name=%s rr_ctrl=0x%x\n",
+           RR_DEFAULT_PREEMPTION_TIMER_VAL, log_name, rr_ctrl.ctrl);
 }

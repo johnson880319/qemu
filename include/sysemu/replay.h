@@ -65,6 +65,12 @@ void replay_mutex_unlock(void);
 
 /* Replay process control functions */
 
+/* rr */
+void replay_enable(const char *fname, int mode);
+void replay_enable_impl(int mode);
+void replay_vmstate_register(void);
+// void replay_event_char_read_run(void *opaque);
+
 /*! Enables recording or saving event log with specified parameters */
 void replay_configure(struct QemuOpts *opts);
 /*! Initializes timers used for snapshotting and enables events recording */
@@ -203,6 +209,8 @@ void replay_chr_be_write(struct Chardev *s, uint8_t *buf, int len);
 void replay_char_write_event_save(int res, int offset);
 /*! Reads char write return value from the replay log. */
 void replay_char_write_event_load(int *res, int *offset);
+/* rr */
+void replay_char_write_event_write(uint8_t *buf, int len);
 /*! Reads information about read_all character event. */
 int replay_char_read_all_load(uint8_t *buf);
 /*! Writes character read_all error code into the replay log. */

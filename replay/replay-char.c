@@ -14,6 +14,7 @@
 #include "sysemu/replay.h"
 #include "replay-internal.h"
 #include "chardev/char.h"
+#include "qemu/main-loop.h"
 
 /* Char drivers that generate qemu_chr_be_write events
    that should be saved into the log. */
@@ -40,9 +41,9 @@ static int find_char_driver(Chardev *chr)
 
 void replay_register_char_driver(Chardev *chr)
 {
-    if (replay_mode == REPLAY_MODE_NONE) {
-        return;
-    }
+    // if (replay_mode == REPLAY_MODE_NONE) {
+    //     return;
+    // }
     char_drivers = g_realloc(char_drivers,
                              sizeof(*char_drivers) * (drivers_count + 1));
     char_drivers[drivers_count++] = chr;
@@ -50,6 +51,7 @@ void replay_register_char_driver(Chardev *chr)
 
 void replay_chr_be_write(Chardev *s, uint8_t *buf, int len)
 {
+    // printf("replay_chr_be_write buf: %c, len: %d\n", buf[0], len);
     CharEvent *event = g_new0(CharEvent, 1);
 
     event->id = find_char_driver(s);
@@ -61,13 +63,16 @@ void replay_chr_be_write(Chardev *s, uint8_t *buf, int len)
     memcpy(event->buf, buf, len);
     event->len = len;
 
+    // printf("replay_chr_be_write saved event, id: %d, buf: %c, len: %ld\n", event->id, event->buf[0], event->len);
     replay_add_event(REPLAY_ASYNC_EVENT_CHAR_READ, event, NULL, 0);
+    replay_save_events();
 }
 
 void replay_event_char_read_run(void *opaque)
 {
     CharEvent *event = (CharEvent *)opaque;
 
+    // printf("replay_event_char_read_run buf: %c\n", event->buf[0]);
     qemu_chr_be_write_impl(char_drivers[event->id], event->buf,
                            (int)event->len);
 
@@ -79,6 +84,7 @@ void replay_event_char_read_save(void *opaque)
 {
     CharEvent *event = (CharEvent *)opaque;
 
+    // printf("replay_event_char_read_save id: %d, buf: %c\n", event->id, event->buf[0]);
     replay_put_byte(event->id);
     replay_put_array(event->buf, event->len);
 }
@@ -89,23 +95,31 @@ void *replay_event_char_read_load(void)
 
     event->id = replay_get_byte();
     replay_get_array_alloc(&event->buf, &event->len);
+    // printf("loaded char buf: %c\n", event->buf[0]);
 
     return event;
 }
 
 void replay_char_write_event_save(int res, int offset)
 {
-    g_assert(replay_mutex_locked());
+    // g_assert(replay_mutex_locked());
+    qemu_mutex_unlock_iothread();
+    replay_mutex_lock();
 
     replay_save_instructions();
     replay_put_event(EVENT_CHAR_WRITE);
     replay_put_dword(res);
     replay_put_dword(offset);
+
+    replay_mutex_unlock();
+    qemu_mutex_lock_iothread();
 }
 
 void replay_char_write_event_load(int *res, int *offset)
 {
-    g_assert(replay_mutex_locked());
+    // g_assert(replay_mutex_locked());
+    qemu_mutex_unlock_iothread();
+    replay_mutex_lock();
 
     replay_account_executed_instructions();
     if (replay_next_event_is(EVENT_CHAR_WRITE)) {
@@ -116,7 +130,14 @@ void replay_char_write_event_load(int *res, int *offset)
         error_report("Missing character write event in the replay log");
         exit(1);
     }
+    replay_mutex_unlock();
+    qemu_mutex_lock_iothread();
 }
+
+// void replay_char_write_event_write(uint8_t *buf, int len)
+// {
+//     qemu_chr_write(char_drivers[0]->be, buf, len, true);
+// }
 
 int replay_char_read_all_load(uint8_t *buf)
 {

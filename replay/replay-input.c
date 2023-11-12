@@ -122,7 +122,9 @@ void replay_input_event(QemuConsole *src, InputEvent *evt)
     if (replay_mode == REPLAY_MODE_PLAY) {
         /* Nothing */
     } else if (replay_mode == REPLAY_MODE_RECORD) {
+        printf("replay_add_input_event\n");
         replay_add_input_event(QAPI_CLONE(InputEvent, evt));
+        replay_save_events();
     } else {
         qemu_input_event_send_impl(src, evt);
     }

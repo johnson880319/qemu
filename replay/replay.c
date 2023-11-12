@@ -40,6 +40,7 @@ QEMUTimer *replay_break_timer;
 
 bool replay_next_event_is(int event)
 {
+    // printf("replay_next_event_is event: %d\n", event);
     bool res = false;
 
     /* nothing to skip - not all instructions used */
@@ -50,6 +51,7 @@ bool replay_next_event_is(int event)
 
     while (true) {
         unsigned int data_kind = replay_state.data_kind;
+        // printf("replay_next_event_is skipping data_kind: %d\n", data_kind);
         if (event == data_kind) {
             res = true;
         }
@@ -74,6 +76,7 @@ uint64_t replay_get_current_icount(void)
 int replay_get_instructions(void)
 {
     int res = 0;
+    // qemu_mutex_lock_iothread();
     replay_mutex_lock();
     if (replay_next_event_is(EVENT_INSTRUCTION)) {
         res = replay_state.instruction_count;
@@ -86,6 +89,7 @@ int replay_get_instructions(void)
         }
     }
     replay_mutex_unlock();
+    // qemu_mutex_unlock_iothread();
     return res;
 }
 
@@ -191,6 +195,7 @@ bool replay_checkpoint(ReplayCheckpoint checkpoint)
 
 void replay_async_events(void)
 {
+    printf("replay_async_events %d\n", rand());
     static bool processing = false;
     /*
      * If we are already processing the events, recursion may occur
@@ -204,7 +209,7 @@ void replay_async_events(void)
     replay_save_instructions();
 
     if (replay_mode == REPLAY_MODE_PLAY) {
-        g_assert(replay_mutex_locked());
+        // g_assert(replay_mutex_locked());
         replay_read_events();
     } else if (replay_mode == REPLAY_MODE_RECORD) {
         g_assert(replay_mutex_locked());
@@ -227,7 +232,12 @@ bool replay_has_event(void)
     return res;
 }
 
-static void replay_enable(const char *fname, int mode)
+void replay_enable_impl(int mode)
+{
+    replay_mode = mode;
+}
+
+void replay_enable(const char *fname, int mode)
 {
     const char *fmode = NULL;
     assert(!replay_file);
@@ -329,10 +339,10 @@ void replay_start(void)
         error_reportf_err(replay_blockers->data, "Record/replay: ");
         exit(1);
     }
-    if (!icount_enabled()) {
-        error_report("Please enable icount to use record/replay");
-        exit(1);
-    }
+    // if (!icount_enabled()) {
+    //     error_report("Please enable icount to use record/replay");
+    //     exit(1);
+    // }
 
     /* Timer for snapshotting will be set up here. */
 

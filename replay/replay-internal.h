@@ -188,6 +188,6 @@ void *replay_event_net_load(void);
 /* Registers replay VMState.
    Should be called before virtual devices initialization
    to make cached timers available for post_load functions. */
-void replay_vmstate_register(void);
+// void replay_vmstate_register(void);
 
 #endif

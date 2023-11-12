@@ -37,6 +37,9 @@
 #include "trace.h"
 #include "hw/qdev-properties.h"
 #include "hw/qdev-properties-system.h"
+/* rr */
+#include "sysemu/replay.h"
+#include "replay/replay-internal.h"
 
 #define UART_LCR_DLAB	0x80	/* Divisor latch access bit */
 

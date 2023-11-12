@@ -42,6 +42,9 @@
 
 #include "chardev-internal.h"
 
+#include "sysemu/replay.h"
+#include "replay/replay-internal.h"
+
 /***********************************************************/
 /* character device */
 
@@ -204,11 +207,12 @@ void qemu_chr_be_write_impl(Chardev *s, uint8_t *buf, int len)
 
 void qemu_chr_be_write(Chardev *s, uint8_t *buf, int len)
 {
-    if (qemu_chr_replay(s)) {
+    if (qemu_chr_replay(s) && replay_mode != REPLAY_MODE_NONE) {
         if (replay_mode == REPLAY_MODE_PLAY) {
             return;
         }
         replay_chr_be_write(s, buf, len);
+        // printf("qemu_chr_be_write buf: %c\n", buf[0]);
     } else {
         qemu_chr_be_write_impl(s, buf, len);
     }
@@ -748,9 +752,9 @@ static Chardev *qemu_chr_new_permit_mux_mon(const char *label,
     Chardev *chr;
     chr = qemu_chr_new_noreplay(label, filename, permit_mux_mon, context);
     if (chr) {
-        if (replay_mode != REPLAY_MODE_NONE) {
-            qemu_chr_set_feature(chr, QEMU_CHAR_FEATURE_REPLAY);
-        }
+        // if (replay_mode != REPLAY_MODE_NONE) {
+        qemu_chr_set_feature(chr, QEMU_CHAR_FEATURE_REPLAY);
+        // }
         if (qemu_chr_replay(chr) && CHARDEV_GET_CLASS(chr)->chr_ioctl) {
             error_report("Replay: ioctl is not supported "
                          "for serial devices yet");
